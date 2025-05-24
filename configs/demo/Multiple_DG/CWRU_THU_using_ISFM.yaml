@@ -24,7 +24,7 @@ data:
   num_workers: 32
   train_ratio: 0.8
   normalization: true
-  window_size: 10
+  window_size: 4096
   stride: 5
   truncate_lenth: 100
 
@@ -67,8 +67,8 @@ task:
     target_domain_num: 1
 
 
-    target_domain_id: [3]
-    source_domain_id: [0,1,2]
+    # target_domain_id: [3]
+    # source_domain_id: [0,1,2]
 
 
     loss: "CE" # cross_entropy
@@ -79,7 +79,7 @@ task:
     optimizer: "adam"
     # max_epochs: 10
     batch_size: 32
-    num_workers: 4
+    num_workers: 0
     pin_memory: true
     shuffle: true
     log_interval: 10

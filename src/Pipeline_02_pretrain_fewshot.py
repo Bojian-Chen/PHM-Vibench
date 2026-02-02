@@ -169,7 +169,28 @@ def pipeline(args):
             if 'stages' in cfg_dict:
                 print(f"[INFO] 使用 unified 多阶段配置运行训练: {args.config_path}")
                 cli_overrides = getattr(args, 'override', None) or []
-                orchestrator = TwoStageOrchestrator(cfg_dict, cli_overrides=cli_overrides)
+                orchestrator_cfg = cfg_dict
+                # 支持 unified YAML 中的 base_configs（先合并 base，再保留 stages 覆盖逻辑）
+                if isinstance(cfg_dict, dict) and cfg_dict.get("base_configs"):
+                    try:
+                        merged = load_config(args.config_path)
+                        merged_sections = {}
+                        for section in ["environment", "data", "model", "task", "trainer"]:
+                            section_obj = getattr(merged, section, None)
+                            if section_obj is not None:
+                                if hasattr(section_obj, "__dict__"):
+                                    merged_sections[section] = section_obj.__dict__
+                                else:
+                                    merged_sections[section] = section_obj
+                        orchestrator_cfg = {
+                            **merged_sections,
+                            "stages": cfg_dict.get("stages", []),
+                        }
+                    except Exception as exc:
+                        print(f"[WARN] base_configs 解析失败，回退到原始配置: {exc}")
+                        orchestrator_cfg = cfg_dict
+
+                orchestrator = TwoStageOrchestrator(orchestrator_cfg, cli_overrides=cli_overrides)
                 summary = orchestrator.run_complete()
                 print("[INFO] Unified multi-stage pipeline (single YAML) completed.")
                 return summary

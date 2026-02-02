@@ -293,7 +293,7 @@ python -m scripts.gen_config_atlas --registry configs/config_registry.csv
 
 #### `demo_05_pretrain_fewshot`
 - Path: `configs/demo/05_pretrain_fewshot/pretrain_hse_then_fewshot.yaml`
-- Description: Pretrain + few-shot two-stage demo（当前为单阶段 HSE 对比预训练示例）
+- Description: Pretrain + few-shot two-stage demo（pretrain → few-shot finetune）
 - Base configs:
   - environment: `configs/base/environment/base.yaml`
   - data: `configs/base/data/base_classification.yaml`

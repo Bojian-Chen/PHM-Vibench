@@ -1,0 +1,62 @@
+# STFT few-shot finetune (single-stage)
+
+pipeline: "Pipeline_01_default"
+
+base_configs:
+  environment: "configs/base/environment/base.yaml"
+  data: "configs/base/data/base_fewshot.yaml"
+  model: "configs/base/model/backbone_dlinear.yaml"
+  task: "configs/base/task/fewshot.yaml"
+  trainer: "configs/base/trainer/default_single_gpu.yaml"
+
+environment:
+  project: "exp_stft_finetune_only"
+  output_dir: "results/experiments/stft_finetune_only"
+  notes: "STFT few-shot finetune on FD dataset [1]."
+
+data:
+  data_dir: "/home/xyc3090/data1/PHM-Vibench-base/data/dataset"
+  metadata_file: "metadata.xlsx"
+  window_size: 8192
+
+model:
+  type: "Transformer"
+  name: "STFTTransformer"
+  d_model: 128
+  n_heads: 8
+  num_layers: 4
+  d_ff: 256
+  dropout: 0.1
+  num_classes: 4
+
+  t_sec: 0.05
+  window_sec: 0.005
+  hop_sec: 0.0025
+  eps: 1.0e-6
+  pos_mode: "fixed_2d_sincos"
+  random_crop: false
+  stft_center: false
+  log_stft_params: true
+  channel_reduce: "first"
+
+  patch_t: 4
+  patch_f: 8
+
+  # Set this via CLI after pretrain:
+  # weights_path: /path/to/ckpt.ckpt
+
+task:
+  type: "FS"
+  name: "classification"
+  loss: "CE"
+  metrics:
+    - "acc"
+  n_way: 4
+  k_shot: 5
+  q_query: 15
+  episodes_per_epoch: 100
+  num_classes: 4
+  target_system_id: [1]
+
+trainer:
+  num_epochs: 10

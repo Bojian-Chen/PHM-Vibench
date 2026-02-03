@@ -1,0 +1,108 @@
+# STFT-based pretrain + few-shot finetune (unified two-stage)
+
+pipeline: "Pipeline_02_pretrain_fewshot"
+
+base_configs:
+  environment: "configs/base/environment/base.yaml"
+  data: "configs/base/data/base_classification.yaml"
+  model: "configs/base/model/backbone_dlinear.yaml"
+  task: "configs/base/task/pretrain.yaml"
+  trainer: "configs/base/trainer/default_single_gpu.yaml"
+
+environment:
+  project: "exp_stft_pretrain_fewshot"
+  output_dir: "results/experiments/stft_pretrain_fewshot"
+  notes: "STFT+coord Transformer pretrain on FD datasets [1,6,7,12,17] + few-shot finetune on [1]."
+
+data:
+  # Local dataset path (override if needed).
+  data_dir: "/home/xyc3090/data1/PHM-Vibench-base/data/dataset"
+  metadata_file: "metadata.xlsx"
+  window_size: 8192
+
+model:
+  type: "Transformer"
+  name: "STFTTransformer"
+
+  # Transformer config
+  d_model: 128
+  n_heads: 8
+  num_layers: 4
+  d_ff: 256
+  dropout: 0.1
+  num_classes: 4
+
+  # STFT config (seconds)
+  t_sec: 0.05
+  window_sec: 0.005
+  hop_sec: 0.0025
+  eps: 1.0e-6
+  pos_mode: "fixed_2d_sincos"
+  random_crop: true
+  stft_center: false
+  log_stft_params: true
+  channel_reduce: "first"
+
+  # Spectrogram patch config
+  patch_t: 4
+  patch_f: 8
+
+task:
+  type: "pretrain"
+  name: "stft_masked_reconstruction"
+  loss: "MSE"
+  metrics: []
+  mask_ratio: 0.15
+  forecast_part: 0.1
+  # Fault diagnosis datasets
+  target_system_id: [6, 7, 12, 17]
+  target_domain_num: 1
+
+trainer:
+  num_epochs: 20
+
+stages:
+  - name: "pretrain"
+    description: "STFT masked reconstruction pretraining (unsupervised)"
+    overrides:
+      environment:
+        stage_name: "pretrain"
+      task:
+        type: "pretrain"
+        name: "stft_masked_reconstruction"
+        training_stage: "pretrain"
+        target_system_id: [6, 7, 12, 17]
+        loss: "MSE"
+        metrics: []
+        mask_ratio: 0.15
+        forecast_part: 0.1
+      model:
+        random_crop: true
+      trainer:
+        num_epochs: 20
+
+  - name: "fewshot_finetune"
+    description: "Few-shot finetune on target system"
+    overrides:
+      environment:
+        stage_name: "fewshot_finetune"
+      task:
+        type: "FS"
+        name: "classification"
+        training_stage: "finetune"
+        n_way: 4
+        k_shot: 5
+        q_query: 15
+        episodes_per_epoch: 100
+        loss: "CE"
+        metrics:
+          - "acc"
+        num_classes: 4
+        target_system_id: [1]
+      model:
+        random_crop: false
+      data:
+        window_size: 8192
+        num_window: 32
+      trainer:
+        num_epochs: 10

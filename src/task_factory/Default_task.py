@@ -138,11 +138,17 @@ class Default_task(pl.LightningModule):
             # x, y, id = batch['x'], batch['y'], batch['id']
             # Ensure a default task identifier if not provided
             batch.setdefault('task_id', 'classification')
-            # Convert tensor-based ID to a Python int for indexing metadata
-            file_id = batch['file_id'][0].item()
-            data_name = self.metadata[file_id]['Name']# .values
-            # dataset_id = self.metadata[file_id]['Dataset_id'].item() 
-            batch.update({'file_id': file_id})
+            file_id_batch = batch['file_id']
+            # Use the first id for dataset-level name/metrics lookup.
+            if isinstance(file_id_batch, torch.Tensor):
+                file_id_scalar = file_id_batch.view(-1)[0].item()
+            elif isinstance(file_id_batch, (list, tuple)) and len(file_id_batch) > 0:
+                file_id_scalar = file_id_batch[0]
+            else:
+                file_id_scalar = file_id_batch
+            data_name = self.metadata[file_id_scalar]['Name']# .values
+            # Keep per-sample file_id for model-level metadata usage.
+            batch.update({'file_id': file_id_batch})
         except (ValueError, TypeError) as e:
             raise ValueError(f" Error: {e}")
 

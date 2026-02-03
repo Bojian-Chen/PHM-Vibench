@@ -8,6 +8,19 @@ from .model_factory import (
 )
 
 
+def register_model(_model_type: str, _model_name: str):
+    """No-op registry decorator for legacy model modules.
+
+    This keeps older modules (e.g., Transformer_Dummy) importable without
+    requiring a full registry system.
+    """
+
+    def _decorator(cls):
+        return cls
+
+    return _decorator
+
+
 def build_model(args: Any, metadata: Any = None) -> Any:
     """Instantiate a model from configuration.
 
@@ -32,4 +45,5 @@ def build_model(args: Any, metadata: Any = None) -> Any:
 __all__ = [
     "build_model",
     "resolve_model_module",
+    "register_model",
 ]

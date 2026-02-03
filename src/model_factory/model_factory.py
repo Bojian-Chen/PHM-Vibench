@@ -72,7 +72,20 @@ def load_ckpt(model, ckpt_path):
     """
     if not os.path.exists(ckpt_path):
         raise FileNotFoundError(f"Checkpoint file {ckpt_path} does not exist.")
-    state_dict = torch.load(ckpt_path, map_location='cpu', weights_only=False)
+    state = torch.load(ckpt_path, map_location='cpu', weights_only=False)
+    # Handle Lightning checkpoints and raw state_dicts.
+    state_dict = state["state_dict"] if isinstance(state, dict) and "state_dict" in state else state
+    if not isinstance(state_dict, dict):
+        raise RuntimeError("Unsupported checkpoint format: expected a state_dict-like mapping.")
+
+    # Strip common prefixes from Lightning/DDP checkpoints.
+    if any(k.startswith("network.") for k in state_dict):
+        state_dict = {k.replace("network.", "", 1): v for k, v in state_dict.items() if k.startswith("network.")}
+    if any(k.startswith("model.") for k in state_dict):
+        state_dict = {k.replace("model.", "", 1): v for k, v in state_dict.items() if k.startswith("model.")}
+    if any(k.startswith("module.") for k in state_dict):
+        state_dict = {k.replace("module.", "", 1): v for k, v in state_dict.items() if k.startswith("module.")}
+
     model_dict = model.state_dict()
     matched_dict = {}
     skipped = []
@@ -89,4 +102,3 @@ def load_ckpt(model, ckpt_path):
         for name, model_sz in skipped:
             print(f"  {name}: checkpoint vs model {model_sz}")
     print(f"已加载匹配的权重: {ckpt_path}")
-

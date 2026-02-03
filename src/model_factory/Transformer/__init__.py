@@ -5,6 +5,7 @@ from .Autoformer import Model as Autoformer
 from .PatchTST import Model as PatchTST
 from .Linformer import Model as Linformer
 from .ConvTransformer import Model as ConvTransformer
+from .STFTTransformer import Model as STFTTransformer
 
 __all__ = [
     "TransformerDummy",
@@ -12,5 +13,6 @@ __all__ = [
     "Autoformer",
     "PatchTST",
     "Linformer",
-    "ConvTransformer"
+    "ConvTransformer",
+    "STFTTransformer",
 ]

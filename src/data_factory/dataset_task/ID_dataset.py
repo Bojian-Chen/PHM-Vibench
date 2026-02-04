@@ -53,7 +53,9 @@ class ID_dataset(Dataset):
         if not metadata:
             raise ValueError("metadata cannot be empty")
 
-        valid_modes = {'train', 'val', 'test', 'valid'}  # 'valid' for backward compatibility
+        if mode == "valid":
+            mode = "val"
+        valid_modes = {'train', 'val', 'test'}
         if mode not in valid_modes:
             raise ValueError(f"mode must be one of {valid_modes}, got '{mode}'")
 
@@ -223,4 +225,3 @@ if __name__ == '__main__':
     print(f"Balanced groups: {balanced}")
 
     print("All tests passed!")
-

@@ -1,6 +1,8 @@
 from .Sampler import HierarchicalFewShotSampler, Same_system_Sampler
+from .fewshot_supervised import FewShotSupervisedSampler
 
 def _get_gfs_sampler(args_task, args_data, dataset, mode):
+    drop_last = getattr(args_data, "drop_last", True)
     if mode == 'train':
         sampler = HierarchicalFewShotSampler(
             dataset=dataset,
@@ -16,64 +18,67 @@ def _get_gfs_sampler(args_task, args_data, dataset, mode):
             dataset=dataset,
             batch_size=args_data.batch_size,
             shuffle=False,
-            drop_last=True,
+            drop_last=drop_last,
         )
     else:
         raise ValueError(f"Unknown mode for GFS sampler: {mode}")
     return sampler
 
 def _get_cddg_sampler(args_data, dataset, mode):
+    drop_last = getattr(args_data, "drop_last", True)
     if mode == 'train':
         sampler = Same_system_Sampler(
             dataset=dataset,
             batch_size=args_data.batch_size,
             shuffle=True,
-            drop_last=True,
+            drop_last=drop_last,
         )
     elif mode == 'val' or mode == 'test':
         sampler = Same_system_Sampler(
             dataset=dataset,
             batch_size=args_data.batch_size,
             shuffle=False,
-            drop_last=True
+            drop_last=drop_last
         )
     else:
         raise ValueError(f"Unknown mode for CDDG sampler: {mode}")
     return sampler
 
 def _get_dg_sampler(args_data, dataset, mode):
+    drop_last = getattr(args_data, "drop_last", True)
     if mode == 'train':
         sampler = Same_system_Sampler(
             dataset, 
             batch_size=args_data.batch_size,
             shuffle=True,
-            drop_last=True
+            drop_last=drop_last
         )
     elif mode == 'val' or mode == 'test':
         sampler = Same_system_Sampler(
             dataset,
             batch_size=args_data.batch_size,
             shuffle=False,
-            drop_last=True
+            drop_last=drop_last
         )
     else:
         raise ValueError(f"Unknown mode for DG sampler: {mode}")
     return sampler
 
 def _get_pretrain_sampler(args_data, dataset, mode):
+    drop_last = getattr(args_data, "drop_last", True)
     if mode == 'train':
         sampler = Same_system_Sampler(
             dataset=dataset,
             batch_size=args_data.batch_size,
             shuffle=True,
-            drop_last=True,
+            drop_last=drop_last,
         )
     elif mode == 'val' or mode == 'test':
         sampler = Same_system_Sampler(
             dataset=dataset,
             batch_size=args_data.batch_size,
             shuffle=False,
-            drop_last=True
+            drop_last=drop_last
         )
     else:
         raise ValueError(f"Unknown mode for Pretrain sampler: {mode}")
@@ -97,20 +102,29 @@ def Get_sampler(args_task, args_data, dataset, mode='train'):
     if args_task.type == 'GFS': # Generalized Few-Shot Learning
         sampler = _get_gfs_sampler(args_task, args_data, dataset, mode)
     elif args_task.type == 'FS':
-        # FS 视作单系统 few-shot 场景，先复用 Same_system_Sampler，保持与 DG/CDDG 一致的按系统分组 batch 行为
-        if mode == 'train':
+        drop_last = getattr(args_data, "drop_last", True)
+        fs_mode = getattr(args_task, "fs_mode", "")
+        if mode == 'train' and fs_mode == "fewshot_supervised":
+            sampler = FewShotSupervisedSampler(
+                dataset=dataset,
+                n_way=getattr(args_task, "n_way", 1),
+                k_shot=getattr(args_task, "k_shot", 1),
+                episodes_per_epoch=getattr(args_task, "episodes_per_epoch", 1),
+            )
+        elif mode == 'train':
+            # FS 视作单系统 few-shot 场景，复用 Same_system_Sampler
             sampler = Same_system_Sampler(
                 dataset=dataset,
                 batch_size=args_data.batch_size,
                 shuffle=True,
-                drop_last=True,
+                drop_last=drop_last,
             )
         elif mode == 'val' or mode == 'test':
             sampler = Same_system_Sampler(
                 dataset=dataset,
                 batch_size=args_data.batch_size,
                 shuffle=False,
-                drop_last=True,
+                drop_last=drop_last,
             )
         else:
             raise ValueError(f"Unknown mode for FS sampler: {mode}")

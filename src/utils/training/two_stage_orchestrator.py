@@ -473,6 +473,8 @@ class MultiStageOrchestrator:
 
         # build
         data_factory = build_data(data, task)
+        if hasattr(data_factory, "log_dataset_summary"):
+            data_factory.log_dataset_summary()
         net = build_model(model, metadata=data_factory.get_metadata())
         lightning_task = build_task(
             args_task=task,
@@ -537,6 +539,8 @@ class MultiStageOrchestrator:
             return {'checkpoint_path': checkpoint_path, 'metrics': {'dry_run': True}, 'path': path}
 
         data_factory = build_data(data, task)
+        if hasattr(data_factory, "log_dataset_summary"):
+            data_factory.log_dataset_summary()
         net = build_model(model, metadata=data_factory.get_metadata())
         lightning_task = build_task(
             args_task=task,

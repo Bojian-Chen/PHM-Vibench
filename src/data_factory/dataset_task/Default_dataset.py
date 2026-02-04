@@ -12,20 +12,28 @@ class Default_dataset(Dataset): # THU_006or018_basic
             metadata: 数据元信息，格式为 {ID: {字段: 值}} 字典
             args_data: 数据处理参数
             args_task: 任务参数
-            mode: 数据模式，可选 "train", "valid", "test"
+            mode: 数据模式，可选 "train", "val", "test"（"valid" 会被归一到 "val"）
         """
         self.key = list(data.keys())[0]
         self.data = data[self.key]  # 取出第一个键的数据
         # self.metadata = metadata
         self.args_data = args_data
+        self.args_task = args_task
+        if mode == "valid":
+            mode = "val"
         self.mode = mode
         
         # 数据处理参数
         self.window_size = args_data.window_size
         self.stride = args_data.stride
         self.train_ratio = args_data.train_ratio
+        self.val_ratio = getattr(args_data, 'val_ratio', 0.0)
+        self.test_ratio = getattr(args_data, 'test_ratio', 0.0)
         self.num_window = args_data.num_window
         self.window_sampling_strategy = getattr(args_data, 'window_sampling_strategy', 'evenly_spaced') # 新增：获取窗口采样策略，默认为evenly_spaced
+        self.release_raw = bool(getattr(args_data, 'release_raw_after_windowing', True))
+        self.windowing_mode = str(getattr(args_data, 'windowing_mode', 'window')).lower()
+        self.t_sec = getattr(args_data, 't_sec', None)
 
         # 数据预处理
         self.processed_data = []  # 存储处理后的样本
@@ -38,14 +46,36 @@ class Default_dataset(Dataset): # THU_006or018_basic
         准备数据：将原始数据按窗口大小和步长分割成样本
         如果mode是train或valid，则划分数据集
         """
+        if self.windowing_mode == "time":
+            fs = None
+            if metadata is not None:
+                row = metadata[self.key]
+                if isinstance(row, dict):
+                    fs = row.get("Sample_rate", row.get("Sample_Rate", row.get("sample_rate", row.get("sample_rate_hz"))))
+                else:
+                    fs = row.get("Sample_rate")
+                    if fs is None:
+                        fs = row.get("Sample_Rate", row.get("sample_rate", row.get("sample_rate_hz")))
+            if self.t_sec is not None and fs is not None:
+                try:
+                    fs_val = float(fs)
+                    if fs_val > 0:
+                        self.window_size = max(1, int(round(fs_val * float(self.t_sec))))
+                except Exception:
+                    pass
+            else:
+                print("[WindowSize] windowing_mode=time but t_sec or Sample_rate missing; fallback to fixed window_size.")
+
         self._process_single_data(self.data)
 
-        # 如果是train或valid模式，进行数据集划分
-        if self.mode in ["train", "valid"]:
+        # 如果是train/val/test模式，进行数据集划分（test可按任务类型控制）
+        if self.mode in ["train", "val", "test"]:
             self._split_data_for_mode()
             
         self.total_samples = len(self.processed_data) # L'
         self.label = metadata[self.key]["Label"]
+        if self.release_raw:
+            self.data = None
     
     def _sequential_sampling(self, sample_data, data_length):
         """顺序采样"""
@@ -194,16 +224,36 @@ class Default_dataset(Dataset): # THU_006or018_basic
         if not self.processed_data:
             return
             
-        # 计算划分点
         total_samples = len(self.processed_data)
-        train_size = int(self.train_ratio * total_samples)
-        
+        if total_samples == 0:
+            return
+
+        train_ratio = float(self.train_ratio) if self.train_ratio is not None else 0.0
+        val_ratio = float(self.val_ratio) if self.val_ratio is not None else 0.0
+        test_ratio = float(self.test_ratio) if self.test_ratio is not None else 0.0
+
+        ratio_sum = train_ratio + val_ratio + test_ratio
+        if ratio_sum <= 0:
+            return
+
+        # normalize to sum=1
+        train_ratio /= ratio_sum
+        val_ratio /= ratio_sum
+        test_ratio /= ratio_sum
+
+        train_size = int(total_samples * train_ratio)
+        val_size = int(total_samples * val_ratio)
+        test_size = max(total_samples - train_size - val_size, 0)
+
         if self.mode == "train":
-            # 训练模式只保留训练数据
             self.processed_data = self.processed_data[:train_size]
-        elif self.mode == "valid":
-            # 验证模式只保留验证数据
-            self.processed_data = self.processed_data[train_size:]
+        elif self.mode == "val":
+            self.processed_data = self.processed_data[train_size:train_size + val_size]
+        elif self.mode == "test":
+            # Only split test windows for non-DG/CDDG tasks; otherwise keep all test windows.
+            task_type = getattr(getattr(self, "args_task", None), "type", "")
+            if task_type in ["FS", "pretrain", "Default_task", "In_distribution", "multi_task"]:
+                self.processed_data = self.processed_data[train_size + val_size:train_size + val_size + test_size]
         self.total_samples = len(self.processed_data)
     
     def __len__(self):
